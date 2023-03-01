@@ -628,10 +628,10 @@ void CFLCompanionDlg::AddSolution(int goodIndex, double destbuy, double srcsell,
 {
 	LONG profit;
 	UINT units = m_cargoSize == 1 ? 1 : UINT(m_cargoSize/g_goods[goodIndex].m_volume);
-	if (units == 0)
-		return;
 	if ((m_maxInvestment > 0) && (srcsell*units > m_maxInvestment))
 		units = UINT(m_maxInvestment/srcsell);
+	if (units == 0)
+		return;
 	if (g_goods[goodIndex].m_decay_time == 0)
 		profit = UINT(destbuy-srcsell)*units;
 	else

@@ -378,63 +378,96 @@ int CGameInspect::DoTask(DWORD flags)
 				}
 			}
 		}
-#if 0
 		
-		if (true) //(flags & IMPORT_FACTIONS)
+		if (flags & IMPORT_FACTIONS)
 		{
-			UINT changed = 0;
+			UINT removedAvoids = 0;
+			UINT addedAvoids = 0;
 			CMap<DWORD, DWORD, CFaction*, CFaction*> idFactionMap;
 			UINT i;
 			for (i = 0; i < FACTIONS_COUNT; i++)
 				idFactionMap[FLFactionHash(g_factions[i].m_nickname)] = &g_factions[i];
 
-			FlTree factionsTree;
-			READFLMEM(factionsTree, FLFACTIONS_ADDR);
+			FlTree playersTree{};
+			READFLMEM(playersTree, FLPLAYERS_ADDR)
+			
+			FlRep* reps;
+			unsigned int count = 0;
+			if (m_mpRepBase != nullptr)
+			{
+				READFLMEM(count, static_cast<char*>(m_mpRepBase) + 0x303c)
+				unsigned int bytes = count * sizeof(FlRep);
+				reps = static_cast<FlRep*>(malloc(bytes));
+				DWORD repsAddress;
+				READFLMEM(repsAddress, static_cast<char*>(m_mpRepBase) + 0x3034)
+				READFLPTR(reps, repsAddress, bytes)
 
-					LPBYTE ptr;
-					READFLMEM(ptr, 0x61e0260);
-					DWORD player_id;
-					int oset = 0;
-					player_id = 0;
-					while (player_id==0)
-					{
-						READFLMEM(player_id, ptr + (4+ oset));
-						oset += 4;
+				for (i = 0; i < FACTIONS_COUNT; i++) {
+					if (g_factions[i].m_avoid) {
+						g_factions[i].m_avoid = false;
+						removedAvoids++;
 					}
+				}
 
-					FlTree playersTree;
-					READFLMEM(playersTree, FLPLAYERS_ADDR);
-					FlNode playerNode;
-					READFLMEM(playerNode, playersTree._Head);
-					READFLMEM(playerNode, playerNode._Parent);
-					LPVOID playerPtr = TreeFind(playersTree, 1);
-					if (playerPtr)
+				for (unsigned int index = 0; index < count; index++) {
+					if (reps[index]._rep <= -0.55f)
 					{
-						FlPlayer player;
-						READFLMEM(player, playerPtr);
-						int count = player._repsEnd-player._repsBegin;
-						//CScopedArray<FlRep> reps = new FlRep[count];
-						//READFLPTR(reps,player._repsBegin,  count*sizeof(FlRep));
-						for (int index = 0; index < count; index++)
-							//if (reps[index]._rep <= -0.6)
-							{
-								//CFaction *faction = idFactionMap[reps[index]._faction_id];
-								////if (!faction->m_avoid)
-								{
-									changed++;
-									//faction->m_avoid = true;
-								}
-							}
+						CFaction *faction = idFactionMap[reps[index]._faction_id];
+						if (faction != nullptr)
+						{
+							addedAvoids++;
+							faction->m_avoid = true;
+						}
 					}
-					if (changed)
-					{
-						Log(L"Imported from game: %d factions to avoid", changed);
-						g_mainDlg->Recalc(g_mainDlg->RECALC_PATHS);
-					}
+				}
+			}
+			else
+			{
+				DWORD player_id;
+				READFLMEM(player_id, FLCLIENTID_ADDR)
+				
+				LPVOID player_ptr = TreeFind(playersTree, player_id);
+				if (player_ptr)
+				{
+					FlPlayer player{};
+					READFLMEM(player, player_ptr)
+					unsigned int bytes = reinterpret_cast<int>(player._repsEnd) - reinterpret_cast<int>(player._repsBegin);
+					count = bytes / sizeof(FlRep);
+					reps = static_cast<FlRep*>(malloc(bytes));
+					READFLPTR(reps, player._repsBegin, bytes)
+				}
+			}
 
+			if (count > 0)
+			{
+				for (i = 0; i < FACTIONS_COUNT; i++) {
+					if (g_factions[i].m_avoid) {
+						g_factions[i].m_avoid = false;
+						removedAvoids++;
+					}
+				}
+
+				for (unsigned int index = 0; index < count; index++) {
+					if (reps[index]._rep <= -0.55f)
+					{
+						CFaction *faction = idFactionMap[reps[index]._faction_id];
+						if (faction != nullptr)
+						{
+							addedAvoids++;
+							faction->m_avoid = true;
+						}
+					}
+				}
+				free(reps);
+			}
+
+			if (removedAvoids > 0 || addedAvoids > 0)
+			{
+				Log(L"Imported from game: %d factions no longer avoided, %d new factions to avoid", removedAvoids, addedAvoids);
+				g_mainDlg->Recalc(g_mainDlg->RECALC_PATHS);
+			}
 		}
 		
-#endif
 		SetPriorityClass(m_hflProcess, dwPriorityClass);
 	}
 	return 1;

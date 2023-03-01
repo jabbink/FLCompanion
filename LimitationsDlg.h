@@ -27,6 +27,7 @@ public:
 	BOOL	m_avoidLockedGates;
 	BOOL	m_jumptrade;
 	BOOL	m_avoidHoles;
+	BOOL	m_avoidUnstableHoles;
 	BOOL	m_avoidGates;
 	BOOL	m_avoidLanes;
 	BOOL	m_isTransport;
